@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1"
+    />
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <style>
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: darkorange;
+      }
+      input {
+        -webkit-appearance: none;
+        border: 1px solid black;
+      }
+      #control {
+        display: flex;
+        flex-direction: column;
+        height: 90vh;
+        align-items: center;
+      }
+      div.section {
+        height: 200px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        max-width: 90vw;
+        width: 200px;
+      }
+      #create,
+      #join {
+        border-radius: 7px;
+        width: 100px;
+        line-height: 2rem;
+        background-color: yellow;
+      }
+      input[type="text"] {
+        width: 100%;
+        border-radius: 5px;
+        text-align: center;
+        line-height: 2rem;
+        margin-bottom: 5px;
+      }
+      #game {
+        border-radius: 5px;
+        width: 115px;
+        line-height: 2rem;
+        margin-top: 20px;
+        background-color: springgreen;
+      }
+      #game-room {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        align-items: center;
+      }
+      #game-controls {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-bottom: 20px;
+      }
+      .player {
+        border-radius: 5px;
+        background-color: orangered;
+        text-align: center;
+        border: 3px solid gray;
+        overflow: hidden;
+        width: 80px;
+        height: 110px;
+        margin: 15px 5px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+      .player.ready {
+        border: 4px solid wheat;
+      }
+      #current-room-id {
+        font-size: 2em;
+        font-weight: 600;
+        text-align: center;
+      }
+      #leave {
+        margin: 0 5px;
+        align-self: center;
+        padding: 5px;
+        border-radius: 3px;
+      }
+      #picks > .card {
+        border-radius: 5px;
+        width: 35px;
+        height: 50px;
+        background-color: yellow;
+      }
+      #report {
+        display: flex;
+        height: 55px;
+      }
+      #report > div {
+        display: inline-flex;
+        margin: 5px 10px;
+      }
+      #report > div > p {
+        margin-left: 5px;
+      }
+      #report .card {
+        border-radius: 5px;
+        width: 35px;
+        height: 50px;
+        background-color: whitesmoke;
+      }
+      #messages {
+        margin-top: 20px;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="control">
+      <div class="section">
+        <input id="name" type="text" title="Name" placeholder="Name" />
+      </div>
+      <div class="section">
+        <input id="create" type="button" value="Create" />
+        <p style="font-style: italic">OR</p>
+        <input id="room-id" type="text" title="room id" placeholder="Room Id" />
+        <input id="join" type="button" value="Join" />
+      </div>
+    </div>
+    <div id="game-room" style="display: none">
+      <div style="display: flex; width: 100%; justify-content: space-evenly">
+        <p id="current-room-id"></p>
+        <input id="leave" type="button" value="X" />
+      </div>
+      <div id="report"></div>
+      <div id="messages"></div>
+      <div id="game-controls">
+        <div id="picks">
+          <input id="e1" class="card" type="button" value="1" />
+          <input id="e2" class="card" type="button" value="2" />
+          <input id="e3" class="card" type="button" value="3" />
+          <input id="e5" class="card" type="button" value="5" />
+          <input id="e8" class="card" type="button" value="8" />
+          <input id="e13" class="card" type="button" value="13" />
+          <input id="e20" class="card" type="button" value="20" />
+          <input id="eQ" class="card" type="button" value="?" />
+        </div>
+        <input id="game" type="button" value="Start" />
+      </div>
+    </div>
+
+    <script>
+      const createBtn = document.getElementById("create");
+      const joinBtn = document.getElementById("join");
+      const leaveBtn = document.getElementById("leave");
+      const gameBtn = document.getElementById("game");
+      const roomIdTxt = document.getElementById("room-id");
+      const nameTxt = document.getElementById("name");
+      const controlDiv = document.getElementById("control");
+      const gameRoomDiv = document.getElementById("game-room");
+      const messageDiv = document.getElementById("messages");
+      const reportDiv = document.getElementById("report");
+      document.querySelectorAll(".card").forEach((elem) => {
+        elem.addEventListener("click", (e) => choseCard(e.target.value));
+      });
+
+      let roomId;
+      let name;
+      let game;
+      let gameState = {
+        status: "READY",
+        end_in_sec: undefined,
+        players: [],
+      };
+
+      createBtn.addEventListener("click", () => {
+        name = nameTxt.value;
+        roomId = Math.random().toString(16).substr(2, 8);
+        if (name) {
+          game = host(name, roomId, stateChange, refreshScreen);
+          refreshScreen();
+        }
+      });
+
+      joinBtn.addEventListener("click", () => {
+        name = nameTxt.value;
+        roomId = roomIdTxt.value;
+        if (name && roomId) {
+          game = participant(name, roomId, stateChange, refreshScreen);
+          refreshScreen();
+        }
+      });
+
+      leaveBtn.addEventListener("click", () => {
+        game.exit();
+        refreshScreen();
+      });
+
+      gameBtn.addEventListener("click", () => {
+        if (gameBtn.value === "Start") {
+          game.start();
+          gameBtn.value = "Reveal";
+        } else if (gameBtn.value === "Reveal") {
+          game.finish(() => {
+            gameBtn.value = "Start";
+          });
+        }
+      });
+
+      function choseCard(value) {
+        game.play(value);
+      }
+
+      function refreshScreen() {
+        controlDiv.style.display = game && game.isOn() ? "none" : "flex";
+        gameRoomDiv.style.display = game && game.isOn() ? "flex" : "none";
+        document.getElementById("current-room-id").innerHTML =
+          "Room #" + roomId || "";
+
+        if (game && game.isOn()) {
+          const container = document.createElement("div");
+          if (gameState.status === "ENDING") {
+            gameBtn.value = "Revealing in " + gameState.end_in_sec;
+          } else {
+            gameBtn.value = gameState.status === "STARTED" ? "Reveal" : "Start";
+          }
+          let myPick;
+          gameState.players.forEach((p) => {
+            const d = document.createElement("div");
+            d.setAttribute("class", "player" + (p.pick ? " ready" : ""));
+            const pname = document.createElement("pre");
+            pname.innerHTML = p.name;
+            d.appendChild(pname);
+
+            if (gameState.status === "ENDED") {
+              const pick = document.createElement("p");
+              pick.innerHTML = p.pick || "-";
+              d.appendChild(pick);
+            }
+
+            container.appendChild(d);
+            if (p.name === name) {
+              myPick = p.pick;
+            }
+          });
+
+          messageDiv.innerHTML = container.innerHTML;
+          document.querySelectorAll(".card").forEach((e) => {
+            e.style.backgroundColor = e.value === myPick ? "red" : "yellow";
+          });
+
+          generateReport();
+        }
+      }
+
+      function generateReport() {
+        if (gameState.status === "ENDED") {
+          const container = document.createElement("div");
+          var picks = gameState.players
+            .filter((p) => !!p.pick)
+            .map((p) => p.pick)
+            .reduce((map, itm) => {
+              map.set(itm, (map.get(itm) || 0) + 1);
+              return map;
+            }, new Map());
+          picks.forEach((v, k, m) => {
+            const row = document.createElement("div");
+            let id = "e" + (k === "?" ? "Q" : k);
+            const card = document.getElementById(id).cloneNode();
+            card.style = "";
+            row.appendChild(card);
+
+            const p = document.createElement("p");
+            p.innerHTML = " x " + v;
+            row.appendChild(p);
+            container.appendChild(row);
+          });
+          reportDiv.innerHTML = container.innerHTML;
+        } else {
+          reportDiv.innerHTML = "";
+        }
+      }
+
+      function stateChange(newState, wholeState) {
+        if (wholeState) {
+          gameState = newState;
+          return gameState;
+        }
+        const { type, data } = newState;
+        if (type === "start") {
+          gameState = {
+            ...gameState,
+            status: "STARTED",
+            players: gameState.players.map((p) => ({ name: p.name })),
+          };
+        } else if (type == "ending") {
+          gameState = {
+            ...gameState,
+            status: "ENDING",
+            end_in_sec: data.value,
+          };
+        } else if (type === "end") {
+          gameState = {
+            ...gameState,
+            status: "ENDED",
+            end_in_sec: undefined,
+          };
+        } else if (type === "join") {
+          gameState = {
+            ...gameState,
+            players: [...gameState.players, { name: data.name }],
+          };
+        } else if (type === "leave") {
+          gameState = {
+            ...gameState,
+            players: gameState.players.filter((p) => p.name !== data.name),
+          };
+        } else if (type === "pick") {
+          gameState = {
+            ...gameState,
+            players: gameState.players.map((p) => {
+              if (p.name === data.name) {
+                return {
+                  name: data.name,
+                  pick: data.card,
+                };
+              }
+              return p;
+            }),
+          };
+        } else if (type === "die") {
+          gameState = {
+            status: "ENDED",
+            players: [],
+          };
+        }
+        return gameState;
+      }
+
+      function createPeer(roomId) {
+        return new Peer(roomId);
+      }
+
+      const host = (name, roomId, stateChange, render) => {
+        let peer = createPeer(roomId);
+        let peerConnections = {};
+        let on = true;
+        const broadcast = (message) => {
+          if (peerConnections) {
+            for (let pId in peerConnections) {
+              peerConnections[pId].send(message);
+            }
+            render();
+          }
+        };
+        const triggerStateChange = (data) => {
+          const s = stateChange(data);
+          broadcast(s);
+        };
+        const countDown = (sec, callback) => {
+          if (sec > 0) {
+            triggerStateChange({
+              type: "ending",
+              data: {
+                value: sec,
+              },
+            });
+            setTimeout(countDown, 1000, sec - 1, callback);
+          } else {
+            callback();
+          }
+        };
+        const close = () => {
+          on = false;
+          triggerStateChange({ type: "die" });
+
+          if (peer) {
+            peer.destroy();
+            peerConnections = {};
+            peer = null;
+          }
+        };
+        const start = () => {
+          triggerStateChange({ type: "start" });
+          on = true;
+        };
+        const finish = (callback) => {
+          countDown(5, () => {
+            triggerStateChange({ type: "end" });
+            callback();
+          });
+        };
+        const play = (card) => {
+          triggerStateChange({
+            type: "pick",
+            data: {
+              name,
+              card,
+            },
+          });
+        };
+
+        peer.on("open", (id) => {
+          triggerStateChange({
+            type: "join",
+            data: {
+              name,
+            },
+          });
+        });
+        peer.on("error", (err) => {
+          close();
+        });
+        peer.on("connection", function (conn) {
+          let remoteName = conn.peer.replace(/^.+-/, "");
+          let remoteId = conn.peer;
+
+          if (peerConnections[remoteId]) {
+            conn.send({
+              type: "error",
+              data: {
+                message: "Name already taken",
+              },
+            });
+            conn.close();
+            return;
+          }
+          peerConnections[remoteId] = conn;
+          triggerStateChange({
+            type: "join",
+            data: {
+              name: remoteName,
+            },
+          });
+          conn.on("data", triggerStateChange);
+          conn.on("close", () => {
+            delete peerConnections[remoteId];
+            triggerStateChange({
+              type: "leave",
+              data: {
+                name: remoteName,
+              },
+            });
+          });
+        });
+
+        return {
+          exit: close,
+          start: start,
+          finish: finish,
+          play: play,
+          isOn: () => on,
+        };
+      };
+
+      const participant = (name, roomId, stateChange, render) => {
+        let peer = createPeer(roomId + "-" + name);
+        let peerConnections = {};
+        let on = true;
+        const countDown = (sec, callback) => {
+          if (sec > 0) {
+            const s = {
+              type: "ending",
+              data: {
+                value: sec,
+              },
+            };
+            peerConnections[roomId].send(s);
+            setTimeout(countDown, 1000, sec - 1, callback);
+          } else {
+            callback();
+          }
+        };
+        const close = () => {
+          on = false;
+          if (peer) {
+            peer.destroy();
+            peerConnections = {};
+            peer = null;
+          }
+          stateChange({
+            type: "die",
+          });
+          render();
+        };
+        const start = () => {
+          peerConnections[roomId].send({ type: "start" });
+          on = true;
+        };
+        const finish = (callback) => {
+          countDown(5, () => {
+            peerConnections[roomId].send({ type: "end" });
+            callback();
+          });
+        };
+        const play = (card) => {
+          peerConnections[roomId].send({
+            type: "pick",
+            data: {
+              name,
+              card,
+            },
+          });
+        };
+
+        peer.on("open", (id) => {
+          const conn = peer.connect(roomId);
+          conn.on("open", function (data) {
+            conn.send({
+              type: "hello",
+              data: {
+                name,
+              },
+            });
+            peerConnections[roomId] = conn;
+          });
+          conn.on("data", function (data) {
+            stateChange(data, true);
+            render();
+          });
+          conn.on("close", close);
+        });
+        peer.on("close", close);
+
+        return {
+          exit: close,
+          start: start,
+          finish: finish,
+          play: play,
+          isOn: () => on,
+        };
+      };
+    </script>
+  </body>
+</html>
