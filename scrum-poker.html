@@ -71,8 +71,8 @@
         text-align: center;
         border: 3px solid gray;
         overflow: hidden;
-        width: 80px;
-        height: 110px;
+        width: 100px;
+        height: 135px;
         margin: 15px 5px;
         display: flex;
         flex-direction: column;
@@ -94,8 +94,8 @@
       }
       #picks > .card {
         border-radius: 5px;
-        width: 35px;
-        height: 50px;
+        width: 45px;
+        height: 70px;
         background-color: yellow;
       }
       #report {
@@ -105,14 +105,15 @@
       #report > div {
         display: inline-flex;
         margin: 5px 10px;
+        align-items: center;
       }
       #report > div > p {
         margin-left: 5px;
       }
       #report .card {
         border-radius: 5px;
-        width: 35px;
-        height: 50px;
+        width: 45px;
+        height: 70px;
         background-color: whitesmoke;
       }
       #messages {
@@ -346,7 +347,29 @@
       }
 
       function createPeer(roomId) {
-        return new Peer(roomId);
+        return new Peer(roomId, {
+          debug: 2,
+          config: {
+            iceServers: [
+              { url: "stun:stun.l.google.com:19302" },
+              {
+                urls: "turn:openrelay.metered.ca:80",
+                username: "openrelayproject",
+                credential: "openrelayproject",
+              },
+              {
+                urls: "turn:openrelay.metered.ca:443",
+                username: "openrelayproject",
+                credential: "openrelayproject",
+              },
+              {
+                urls: "turn:openrelay.metered.ca:443?transport=tcp",
+                username: "openrelayproject",
+                credential: "openrelayproject",
+              },
+            ],
+          },
+        });
       }
 
       const host = (name, roomId, stateChange, render) => {
